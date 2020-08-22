@@ -25,6 +25,7 @@ void usage() {
 // global variables
 char *block_host;
 
+// main function
 int main(int argc, char **argv)
 {
 	// check syntax
@@ -33,6 +34,7 @@ int main(int argc, char **argv)
 		return -1;
 	}
 	
+	// host name for blocking
 	block_host = argv[1];
 
 	struct nfq_handle *h;
@@ -113,7 +115,7 @@ int main(int argc, char **argv)
 	return 0;
 }
 
-
+// parsing buf into protocols
 int parse(unsigned char* buf, int size) {
 	// adjust the packet with IPv4 protocol
 	IPv4 *ipv4 = (IPv4*) buf;
@@ -143,33 +145,29 @@ int parse(unsigned char* buf, int size) {
 	size_t found_host = payload.find(key);
 	size_t found_endline = std::string::npos;
 	std::string host;
+	// if "Host: " string is found,
 	if (found_host != std::string::npos) {
 		found_host += key.length();
 		found_endline = payload.find("\r\n", found_host+1);
 	}
+	
+	// if "Host: **.***.**\r\n" string is matched,
+	// then **.***.** is the host URL
 	if (found_endline != std::string::npos) {
+		// extract host URL
 		host = payload.substr(found_host, found_endline-found_host);
-		// printf("\n\n%s\n\n", host.c_str());
 		
+		// if this host is for blocking, then drop
 		if (host == block_host) {
 			printf("** Blocked the host! **\n");
 			return NF_DROP;
 		}
 	}
 	
-	/*
-	printf("\n");
-	for (int i = 0; (data + i) < (buf + size); i++) {
-		// ipv4->tot_len == ip_hdrlen + tcp_hdrlen + payload
-		printf("%c", data[i]);
-	}
-	printf("\n\n");
-	*/
-	
 	return NF_ACCEPT;
 }
 
-/* returns packet id */
+// returns packet id
 static u_int32_t print_pkt (struct nfq_data *tb, int *decide_type)
 {
 	int id = 0;
@@ -228,6 +226,7 @@ static u_int32_t print_pkt (struct nfq_data *tb, int *decide_type)
 	return id;
 }
 
+// callback function
 static int cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
 	      struct nfq_data *nfa, void *data)
 {
