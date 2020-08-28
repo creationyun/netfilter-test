@@ -15,6 +15,7 @@ int parse(unsigned char* buf, int size);
 static u_int32_t print_pkt (struct nfq_data *tb, int *decide_type);
 static int cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
 	      struct nfq_data *nfa, void *data);
+bool host_match(std::string str, std::string host);
 
 // function that shows usage
 void usage() {
@@ -140,8 +141,7 @@ int parse(unsigned char* buf, int size) {
 	
 	// parsing HTTP host
 	std::string key("Host: ");
-	std::string payload;
-	payload.assign((const char*)data);
+	std::string payload((const char *)data);
 	size_t found_host = payload.find(key);
 	size_t found_endline = std::string::npos;
 	std::string host;
@@ -158,7 +158,7 @@ int parse(unsigned char* buf, int size) {
 		host = payload.substr(found_host, found_endline-found_host);
 		
 		// if this host is for blocking, then drop
-		if (host == block_host) {
+		if (host_match(host, block_host)) {
 			printf("** Blocked the host! **\n");
 			return NF_DROP;
 		}
@@ -234,4 +234,36 @@ static int cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
 	u_int32_t id = print_pkt(nfa, &type);
 	printf("entering callback\n");
 	return nfq_set_verdict(qh, id, type, 0, NULL);
+}
+
+// host matching function
+// example: "www.google.com" tries to match host with
+//          "www.google.com" and "google.com"
+//
+bool host_match(std::string str, std::string host)
+{
+	size_t pos = 0;
+	
+	while (pos != std::string::npos) {
+		size_t point_pos = str.find('.', pos);
+		
+		if (point_pos == std::string::npos) {
+			return false;
+		}
+		
+		if (host == str.substr(pos)) {
+			return true;
+		}
+		
+		pos = point_pos;
+		
+		if (pos != std::string::npos) {
+			pos += 1;
+			
+			if (pos == str.length())
+				return false;
+		}
+	}
+	
+	return false;
 }
